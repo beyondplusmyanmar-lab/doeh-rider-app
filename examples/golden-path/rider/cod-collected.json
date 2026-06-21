@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "source": "deterministic-golden-path-fixture",
+    "captured_from_runtime": false,
+    "money_representation": "minor-units",
+    "pricing": "illustrative"
+  },
+  "response": { "cod_collected": true, "amount_minor": 18000 }
+}

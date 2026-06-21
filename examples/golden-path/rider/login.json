@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "source": "deterministic-golden-path-fixture",
+    "captured_from_runtime": false,
+    "money_representation": "minor-units",
+    "pricing": "illustrative"
+  },
+  "request": { "email": "demo-rider@example.com", "password": "rider-demo-pass" },
+  "response": {
+    "token": "12|abcdefghijklmnopqrstuvwxyz0123456789",
+    "rider": { "id": 42, "name": "Demo Rider", "email": "demo-rider@example.com", "phone": "0912345678", "email_verified_at": "2026-06-21T08:00:00Z" },
+    "shops": [
+      {
+        "shop": { "id": 1, "shop_code": "SANDBOX-DEMO", "name": "Sandbox Demo Shop" },
+        "user_id": 99,
+        "rider_id": 42,
+        "wallet": { "balance_minor": 0, "total_collected_minor": 0 }
+      }
+    ]
+  }
+}

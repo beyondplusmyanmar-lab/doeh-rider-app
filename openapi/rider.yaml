@@ -1,0 +1,822 @@
+openapi: 3.0.3
+info:
+  title: DOEH Rider API
+  version: 0.1.0
+  description: >
+    First-party rider fulfillment API consumed by the DOEH rider app
+    (`doeh-rider-app`). This is the **rider stack**, distinct from the
+    `@beyondplusmm/doehpos-sdk` integration stack:
+
+    - **Audience:** delivery riders (a rider is a `users` row with
+      `role='rider'`), not third-party integrators.
+    - **Auth:** the rider logs in with email + password and receives a
+      personal Laravel **Sanctum** bearer token. There is no `sk_` API key
+      and no edge gateway in this path — the app calls pos-shop directly.
+    - **Scope:** a rider may be registered in multiple shops; `shop_id` is
+      derived from the authenticated token, never sent by the client.
+
+    **Money is integer minor units** (`*_minor`) on this public contract,
+    matching the Orders convention. The internal Laravel aggregate stores
+    float major units; a backend float⇄minor adapter is the authority that
+    converts at the boundary (parallel to the Orders `MoneyCodec`). This
+    document is therefore a **governed projection** of the already-authoritative
+    API implemented in `RiderDeliveryController` / `RiderNotificationController`:
+    it documents the public-facing surface, not the raw internal field shapes.
+servers:
+  - url: https://{host}/api/v1
+    description: Rider API base
+    variables:
+      host:
+        default: your-shop-host.example.com
+        description: The DOEH pos-shop host serving the rider API.
+
+tags:
+  - name: auth
+    description: Rider account login, registration, email verification, password.
+  - name: deliveries
+    description: Assigned deliveries, lifecycle transitions, COD, QR scan/claim.
+  - name: profile
+    description: Rider profile and wallet.
+  - name: location
+    description: Live GPS position updates.
+  - name: notifications
+    description: In-app notifications and FCM device registration.
+
+security:
+  - riderToken: []
+
+paths:
+  # ── AUTH (public) ─────────────────────────────────────────────────────────
+  /rider/login:
+    post:
+      tags: [auth]
+      summary: Rider login (multi-shop)
+      description: >
+        Authenticates by email + password and returns a Sanctum token plus the
+        list of shops where the rider is registered. The same email may exist
+        in multiple shops; the password is tried against all of them.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+            examples:
+              golden:
+                value: { email: "demo-rider@example.com", password: "rider-demo-pass" }
+      responses:
+        '200':
+          description: Authenticated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+              examples:
+                golden:
+                  value:
+                    token: "12|abcdefghijklmnopqrstuvwxyz0123456789"
+                    rider: { id: 42, name: "Demo Rider", email: "demo-rider@example.com", phone: "0912345678", email_verified_at: "2026-06-21T08:00:00Z" }
+                    shops:
+                      - shop: { id: 1, shop_code: "SANDBOX-DEMO", name: "Sandbox Demo Shop" }
+                        user_id: 99
+                        rider_id: 42
+                        wallet: { balance_minor: 0, total_collected_minor: 0 }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /rider/register:
+    post:
+      tags: [auth]
+      summary: Rider self-registration
+      description: Creates a rider user (no shop yet) and emails a 6-digit verification OTP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Registered; verification OTP sent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResponse' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /rider/forgot-password:
+    post:
+      tags: [auth]
+      summary: Request a password-reset OTP
+      description: Always returns success to prevent email enumeration.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties: { email: { type: string, format: email } }
+      responses:
+        '200':
+          description: If an account exists, a reset code was sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  expires_in: { type: integer, description: Seconds until the OTP expires. }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /rider/reset-password:
+    post:
+      tags: [auth]
+      summary: Reset password with OTP
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, otp, password, password_confirmation]
+              properties:
+                email: { type: string, format: email }
+                otp: { type: string, minLength: 6, maxLength: 6 }
+                password: { type: string, minLength: 6 }
+                password_confirmation: { type: string }
+      responses:
+        '200':
+          description: Password reset.
+          content:
+            application/json:
+              schema: { type: object, properties: { message: { type: string } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /rider/verify-email:
+    post:
+      tags: [auth]
+      summary: Verify email with OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [otp]
+              properties: { otp: { type: string, minLength: 6, maxLength: 6 } }
+      responses:
+        '200':
+          description: Email verified.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  email_verified_at: { type: string, format: date-time, nullable: true }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /rider/resend-email-otp:
+    post:
+      tags: [auth]
+      summary: Resend the email verification OTP
+      responses:
+        '200':
+          description: OTP sent (or already verified).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  expires_in: { type: integer }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /rider/password:
+    put:
+      tags: [auth]
+      summary: Change password (authenticated)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, password, password_confirmation]
+              properties:
+                current_password: { type: string }
+                password: { type: string, minLength: 6 }
+                password_confirmation: { type: string }
+      responses:
+        '200':
+          description: Password changed.
+          content:
+            application/json:
+              schema: { type: object, properties: { message: { type: string } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  # ── DELIVERIES ────────────────────────────────────────────────────────────
+  /rider/deliveries:
+    get:
+      tags: [deliveries]
+      summary: List the rider's deliveries
+      description: >
+        Active deliveries across every shop the rider belongs to. Pass
+        `history=1` for terminal deliveries (Delivered/Cancelled/Failed) within
+        the last `days` (default 7, max 90). Pass `shop_id` to scope to one shop.
+      parameters:
+        - { name: shop_id, in: query, required: false, schema: { type: integer }, description: Filter to one shop. }
+        - { name: history, in: query, required: false, schema: { type: boolean }, description: Return terminal deliveries instead of active. }
+        - { name: days, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 90, default: 7 }, description: History window in days. }
+      responses:
+        '200':
+          description: List of deliveries (newest first).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DeliverySummary' }
+              examples:
+                golden:
+                  value:
+                    - id: 1001
+                      delivery_code: "DL-A3B7-2026"
+                      drop_address: "No. 5, Demo Street, Yangon"
+                      cod_amount_minor: 18000
+                      cod_collected: false
+                      is_cod: true
+                      status: 5
+                      status_label: "Out for Delivery"
+                      order_number: "ORD-2026-0001"
+                      shop_id: 1
+                      shop_name: "Sandbox Demo Shop"
+                      shop_code: "SANDBOX-DEMO"
+                      created_at: "2026-06-21T08:30:00Z"
+
+  /rider/deliveries/scan/{code}:
+    get:
+      tags: [deliveries]
+      summary: Look up a delivery by its code (QR scan)
+      description: Returns a delivery in any shop the rider belongs to, regardless of assignment. Use `can_claim` / `is_assigned_to_me` to decide the next action.
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string }, description: The delivery_code from the QR. }
+      responses:
+        '200':
+          description: Delivery found.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScannedDelivery' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rider/deliveries/{id}:
+    get:
+      tags: [deliveries]
+      summary: Delivery detail
+      description: Full detail for a delivery assigned to the authenticated rider, including order items and customer contact.
+      parameters:
+        - $ref: '#/components/parameters/DeliveryId'
+      responses:
+        '200':
+          description: Delivery detail.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeliveryDetail' }
+              examples:
+                golden:
+                  value:
+                    id: 1001
+                    delivery_code: "DL-A3B7-2026"
+                    pickup_address: "Sandbox Demo Shop, Yangon"
+                    drop_address: "No. 5, Demo Street, Yangon"
+                    delivery_lat: 16.8409
+                    delivery_lng: 96.1735
+                    delivery_fee_minor: 2500
+                    cod_amount_minor: 18000
+                    cod_collected: false
+                    is_cod: true
+                    status: 5
+                    status_label: "Out for Delivery"
+                    customer_phone: "0998765432"
+                    customer_name: "Demo Customer"
+                    order_number: "ORD-2026-0001"
+                    items:
+                      - { product_name: "Classic Burger", quantity: 2, unit_price_minor: 3500 }
+                      - { product_name: "Cola", quantity: 1, unit_price_minor: 1200 }
+                    accepted_at: "2026-06-21T08:32:00Z"
+                    picked_up_at: "2026-06-21T08:45:00Z"
+                    delivered_at: null
+                    created_at: "2026-06-21T08:30:00Z"
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rider/deliveries/{id}/status:
+    put:
+      tags: [deliveries]
+      summary: Advance the delivery status
+      description: >
+        Applies a rider-allowed transition. Transitions are linear:
+        Pending→Accepted→Preparing→ReadyPickup→OutForDelivery→Delivered (or
+        →Failed from OutForDelivery). Riders **cannot** cancel — only the shop
+        can. Marking Delivered auto-collects COD into the rider wallet.
+      parameters:
+        - $ref: '#/components/parameters/DeliveryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: '#/components/schemas/DeliveryStatus' }
+                note: { type: string, maxLength: 300, nullable: true }
+            examples:
+              accept:
+                summary: Pending → Accepted
+                value: { status: 2 }
+              pickup:
+                summary: ReadyPickup → OutForDelivery (picked up)
+                value: { status: 5 }
+              delivered:
+                summary: OutForDelivery → Delivered
+                value: { status: 6, note: "Handed to customer at door" }
+      responses:
+        '200':
+          description: Transition applied.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusResult' }
+              examples:
+                accept:
+                  value: { id: 1001, status: 2, status_label: "Accepted", cod_collected: false }
+                pickup:
+                  value: { id: 1001, status: 5, status_label: "Out for Delivery", cod_collected: false }
+                delivered:
+                  value: { id: 1001, status: 6, status_label: "Delivered", cod_collected: true }
+        '422':
+          description: Delivery is terminal, or the requested transition is not allowed from the current status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rider/deliveries/{id}/claim:
+    post:
+      tags: [deliveries]
+      summary: Claim an unassigned delivery
+      description: Succeeds only when the delivery has no rider and is not terminal.
+      parameters:
+        - $ref: '#/components/parameters/DeliveryId'
+      responses:
+        '200':
+          description: Claimed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  rider_id: { type: integer }
+                  status: { $ref: '#/components/schemas/DeliveryStatus' }
+                  status_label: { type: string }
+                  message: { type: string }
+        '422':
+          description: Delivery already completed or cancelled.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rider/deliveries/{id}/deliver:
+    put:
+      tags: [deliveries]
+      summary: Quick deliver (claim-if-needed + mark Delivered)
+      description: One-shot used at the delivery point after a QR scan. Claims the delivery if unassigned, marks it Delivered, and auto-collects COD.
+      parameters:
+        - $ref: '#/components/parameters/DeliveryId'
+      responses:
+        '200':
+          description: Delivered.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  status: { $ref: '#/components/schemas/DeliveryStatus' }
+                  status_label: { type: string }
+                  cod_collected: { type: boolean }
+                  message: { type: string }
+        '403':
+          description: Delivery is assigned to another rider.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '422':
+          description: Delivery is already terminal.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rider/deliveries/{id}/cod-collected:
+    put:
+      tags: [deliveries]
+      summary: Mark COD as collected
+      description: Explicit COD collection for cases where auto-collect on delivery was skipped. Only valid for a COD delivery already marked Delivered and not yet collected.
+      parameters:
+        - $ref: '#/components/parameters/DeliveryId'
+      responses:
+        '200':
+          description: COD collected.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cod_collected: { type: boolean }
+                  amount_minor: { type: integer }
+              examples:
+                golden:
+                  value: { cod_collected: true, amount_minor: 18000 }
+        '422':
+          description: Not a COD order, not yet Delivered, or already collected.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── PROFILE & WALLET ──────────────────────────────────────────────────────
+  /rider/profile:
+    get:
+      tags: [profile]
+      summary: Rider profile
+      responses:
+        '200':
+          description: Profile.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  phone: { type: string }
+                  vehicle_type: { type: string, nullable: true }
+                  is_active: { type: boolean }
+                  last_seen_at: { type: string, format: date-time, nullable: true }
+
+  /rider/wallet:
+    get:
+      tags: [profile]
+      summary: Rider wallet
+      description: COD balance owed to the shop, plus lifetime collected / settled totals. All amounts are minor units.
+      responses:
+        '200':
+          description: Wallet.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  balance_minor: { type: integer }
+                  total_collected_minor: { type: integer }
+                  total_settled_minor: { type: integer }
+              examples:
+                golden:
+                  value: { balance_minor: 325000, total_collected_minor: 540000, total_settled_minor: 215000 }
+
+  # ── LOCATION ──────────────────────────────────────────────────────────────
+  /rider/location:
+    put:
+      tags: [location]
+      summary: Update live GPS position
+      description: Server throttles writes to ~20s resolution; a throttled call still returns ok.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lng]
+              properties:
+                lat: { type: number, minimum: -90, maximum: 90 }
+                lng: { type: number, minimum: -180, maximum: 180 }
+      responses:
+        '200':
+          description: Accepted (possibly throttled).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  throttled: { type: boolean }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  # ── NOTIFICATIONS & DEVICE ────────────────────────────────────────────────
+  /rider/notifications:
+    get:
+      tags: [notifications]
+      summary: List notifications (paginated)
+      responses:
+        '200':
+          description: Notifications page.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notification' }
+                  meta:
+                    type: object
+                    properties:
+                      current_page: { type: integer }
+                      last_page: { type: integer }
+                      per_page: { type: integer }
+                      total: { type: integer }
+
+  /rider/notifications/unread:
+    get:
+      tags: [notifications]
+      summary: Unread notification count
+      responses:
+        '200':
+          description: Count.
+          content:
+            application/json:
+              schema: { type: object, properties: { unread_count: { type: integer } } }
+
+  /rider/notifications/{id}/read:
+    put:
+      tags: [notifications]
+      summary: Mark a notification read
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        '200': { description: Marked read., content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rider/notifications/read-all:
+    put:
+      tags: [notifications]
+      summary: Mark all notifications read
+      responses:
+        '200': { description: All marked read., content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+
+  /rider/notifications/{id}:
+    delete:
+      tags: [notifications]
+      summary: Dismiss a notification
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        '200': { description: Dismissed., content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /rider/device:
+    post:
+      tags: [notifications]
+      summary: Register an FCM device token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_token, platform]
+              properties:
+                device_token: { type: string }
+                platform: { type: string, enum: [ios, android, web] }
+                device_id: { type: string, nullable: true }
+                device_model: { type: string, nullable: true }
+                os_version: { type: string, nullable: true }
+                app_version: { type: string, nullable: true }
+      responses:
+        '200': { description: Registered., content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [notifications]
+      summary: Remove an FCM device token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_token]
+              properties: { device_token: { type: string } }
+      responses:
+        '200': { description: Removed., content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+
+components:
+  securitySchemes:
+    riderToken:
+      type: http
+      scheme: bearer
+      description: "Sanctum personal access token returned by `/rider/login`. Send as `Authorization: Bearer <token>`."
+
+  parameters:
+    DeliveryId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+      description: DeliveryOrder id.
+
+  responses:
+    ValidationError:
+      description: Validation failed.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+              errors:
+                type: object
+                additionalProperties:
+                  type: array
+                  items: { type: string }
+    NotFound:
+      description: Resource not found or not visible to this rider.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Message' }
+    RateLimited:
+      description: Too many requests (auth throttle).
+
+  schemas:
+    DeliveryStatus:
+      type: integer
+      description: >
+        1=Pending, 2=Accepted, 3=Preparing, 4=ReadyPickup, 5=OutForDelivery,
+        6=Delivered, 7=Cancelled, 8=Failed.
+      enum: [1, 2, 3, 4, 5, 6, 7, 8]
+
+    Message:
+      type: object
+      properties: { message: { type: string } }
+
+    Success:
+      type: object
+      properties: { success: { type: boolean } }
+
+    StatusResult:
+      type: object
+      properties:
+        id: { type: integer }
+        status: { $ref: '#/components/schemas/DeliveryStatus' }
+        status_label: { type: string }
+        cod_collected: { type: boolean }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    LoginResponse:
+      type: object
+      properties:
+        token: { type: string }
+        rider:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            email: { type: string }
+            phone: { type: string }
+            email_verified_at: { type: string, format: date-time, nullable: true }
+        shops:
+          type: array
+          items:
+            type: object
+            properties:
+              shop:
+                type: object
+                properties:
+                  id: { type: integer }
+                  shop_code: { type: string }
+                  name: { type: string }
+              user_id: { type: integer }
+              rider_id: { type: integer, nullable: true }
+              wallet:
+                type: object
+                nullable: true
+                properties:
+                  balance_minor: { type: integer }
+                  total_collected_minor: { type: integer }
+
+    RegisterRequest:
+      type: object
+      required: [name, email, phone, password]
+      properties:
+        name: { type: string, maxLength: 100 }
+        email: { type: string, format: email, maxLength: 255 }
+        phone: { type: string, maxLength: 20 }
+        password: { type: string, minLength: 6 }
+
+    RegisterResponse:
+      type: object
+      properties:
+        token: { type: string }
+        rider:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            email: { type: string }
+            phone: { type: string }
+            email_verified_at: { type: string, nullable: true }
+        verification:
+          type: object
+          properties:
+            message: { type: string }
+            expires_in: { type: integer }
+            otp: { type: string, nullable: true, description: Present only in debug builds. }
+
+    DeliverySummary:
+      type: object
+      properties:
+        id: { type: integer }
+        delivery_code: { type: string }
+        drop_address: { type: string, nullable: true, description: Decrypted for the assigned rider. }
+        cod_amount_minor: { type: integer }
+        cod_collected: { type: boolean }
+        is_cod: { type: boolean }
+        status: { $ref: '#/components/schemas/DeliveryStatus' }
+        status_label: { type: string }
+        order_number: { type: string, nullable: true }
+        shop_id: { type: integer }
+        shop_name: { type: string, nullable: true }
+        shop_code: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    DeliveryDetail:
+      type: object
+      properties:
+        id: { type: integer }
+        delivery_code: { type: string }
+        pickup_address: { type: string, nullable: true }
+        drop_address: { type: string, nullable: true }
+        delivery_lat: { type: number, nullable: true }
+        delivery_lng: { type: number, nullable: true }
+        delivery_fee_minor: { type: integer }
+        cod_amount_minor: { type: integer }
+        cod_collected: { type: boolean }
+        is_cod: { type: boolean }
+        status: { $ref: '#/components/schemas/DeliveryStatus' }
+        status_label: { type: string }
+        customer_phone: { type: string, nullable: true }
+        customer_name: { type: string, nullable: true }
+        order_number: { type: string, nullable: true }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product_name: { type: string }
+              quantity: { type: integer }
+              unit_price_minor: { type: integer }
+        accepted_at: { type: string, format: date-time, nullable: true }
+        picked_up_at: { type: string, format: date-time, nullable: true }
+        delivered_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    ScannedDelivery:
+      type: object
+      properties:
+        id: { type: integer }
+        delivery_code: { type: string }
+        pickup_address: { type: string, nullable: true }
+        drop_address: { type: string, nullable: true }
+        delivery_fee_minor: { type: integer }
+        cod_amount_minor: { type: integer }
+        cod_collected: { type: boolean }
+        is_cod: { type: boolean }
+        status: { $ref: '#/components/schemas/DeliveryStatus' }
+        status_label: { type: string }
+        customer_phone: { type: string, nullable: true }
+        customer_name: { type: string, nullable: true }
+        order_number: { type: string, nullable: true }
+        shop_id: { type: integer }
+        shop_name: { type: string, nullable: true }
+        rider_id: { type: integer, nullable: true }
+        is_assigned_to_me: { type: boolean }
+        can_claim: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        category: { type: string, nullable: true }
+        deep_link: { type: string, nullable: true }
+        icon: { type: string, nullable: true }
+        image_url: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }

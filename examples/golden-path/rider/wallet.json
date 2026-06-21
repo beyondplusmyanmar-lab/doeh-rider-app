@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "source": "deterministic-golden-path-fixture",
+    "captured_from_runtime": false,
+    "money_representation": "minor-units",
+    "pricing": "illustrative"
+  },
+  "response": { "balance_minor": 325000, "total_collected_minor": 540000, "total_settled_minor": 215000 }
+}

@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "source": "deterministic-golden-path-fixture",
+    "captured_from_runtime": false,
+    "money_representation": "minor-units",
+    "pricing": "illustrative"
+  },
+  "response": [
+    {
+      "id": 1001,
+      "delivery_code": "DL-A3B7-2026",
+      "drop_address": "No. 5, Demo Street, Yangon",
+      "cod_amount_minor": 18000,
+      "cod_collected": false,
+      "is_cod": true,
+      "status": 5,
+      "status_label": "Out for Delivery",
+      "order_number": "ORD-2026-0001",
+      "shop_id": 1,
+      "shop_name": "Sandbox Demo Shop",
+      "shop_code": "SANDBOX-DEMO",
+      "created_at": "2026-06-21T08:30:00Z"
+    }
+  ]
+}

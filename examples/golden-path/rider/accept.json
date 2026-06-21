@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "source": "deterministic-golden-path-fixture",
+    "captured_from_runtime": false,
+    "money_representation": "minor-units",
+    "pricing": "illustrative"
+  },
+  "transition": { "from": 1, "to": 2 },
+  "request": { "status": 2 },
+  "response": { "id": 1001, "status": 2, "status_label": "Accepted", "cod_collected": false }
+}

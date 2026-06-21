@@ -1,0 +1,13 @@
+{
+  "name": "doeh-rider-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DOEH rider reference application — contract + (future) Expo app. Consumes the first-party rider API.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

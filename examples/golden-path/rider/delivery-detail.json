@@ -1,0 +1,33 @@
+{
+  "meta": {
+    "source": "deterministic-golden-path-fixture",
+    "captured_from_runtime": false,
+    "money_representation": "minor-units",
+    "pricing": "illustrative"
+  },
+  "response": {
+    "id": 1001,
+    "delivery_code": "DL-A3B7-2026",
+    "pickup_address": "Sandbox Demo Shop, Yangon",
+    "drop_address": "No. 5, Demo Street, Yangon",
+    "delivery_lat": 16.8409,
+    "delivery_lng": 96.1735,
+    "delivery_fee_minor": 2500,
+    "cod_amount_minor": 18000,
+    "cod_collected": false,
+    "is_cod": true,
+    "status": 5,
+    "status_label": "Out for Delivery",
+    "customer_phone": "0998765432",
+    "customer_name": "Demo Customer",
+    "order_number": "ORD-2026-0001",
+    "items": [
+      { "product_name": "Classic Burger", "quantity": 2, "unit_price_minor": 3500 },
+      { "product_name": "Cola", "quantity": 1, "unit_price_minor": 1200 }
+    ],
+    "accepted_at": "2026-06-21T08:32:00Z",
+    "picked_up_at": "2026-06-21T08:45:00Z",
+    "delivered_at": null,
+    "created_at": "2026-06-21T08:30:00Z"
+  }
+}

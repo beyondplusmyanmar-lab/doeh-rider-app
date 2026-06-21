@@ -122,7 +122,7 @@ non-negative integer, or if a transition violates the state machine.
 | Phase | Item | Status |
 |---|---|---|
 | A | Governed contract (OpenAPI · fixtures · drift gate · hierarchy · portal page) | ✅ done |
-| **B** | **Demo-rider provisioning** — [design spec](docs/PHASE-B-DEMO-RIDER-PROVISIONING.md) (Proposed); sandbox account so the app is runnable | ⏳ depends on operational sandbox |
+| **B** | **Demo-rider provisioning** — [design spec](docs/PHASE-B-DEMO-RIDER-PROVISIONING.md) (Proposed) · [activation tracker](docs/PHASE-B-ACTIVATION.md); sandbox account so the app is runnable | ⏳ depends on operational sandbox |
 | C | This public repository | ✅ in progress |
 | D | Runtime-captured fixtures (flip `captured_from_runtime` after a real sandbox delivery) | ⏳ |
 | INV-RIDER-1 | Float⇄minor adapter at the API boundary | ⏳ |

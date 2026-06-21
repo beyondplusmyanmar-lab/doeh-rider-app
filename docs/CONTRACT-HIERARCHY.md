@@ -67,6 +67,20 @@ Shortest form:
   (or `→ Failed` from OutForDelivery). Transitions are linear; non-adjacent jumps
   are rejected; **riders cannot cancel** — only the shop can.
 
+## Tenant-scope invariant (INV-RIDER-2)
+
+A rider token represents **exactly one shop context**, derived from the
+authenticated (email) user's `shop_id`. There is **no secondary identity
+resolution** in rider read paths — phone is a profile attribute, never a routing
+key — and **no cross-shop data access**: every read and write is scoped to the
+token's shop. A rider registered in multiple shops uses a separate login/token
+per shop.
+
+This is a **backend-enforced runtime invariant** (it governs which rows a request
+may see), so it is not checked by the example/fixture drift gate the way money
+and lifecycle are. It is enforced in the API implementation and asserted at the
+contract level here so the boundary is explicit and cannot be silently widened.
+
 ## Relationship to Orders
 
 This mirrors the Orders contract system exactly. The two share one governance

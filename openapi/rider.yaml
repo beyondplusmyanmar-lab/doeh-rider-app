@@ -12,8 +12,10 @@ info:
     - **Auth:** the rider logs in with email + password and receives a
       personal Laravel **Sanctum** bearer token. There is no `sk_` API key
       and no edge gateway in this path — the app calls pos-shop directly.
-    - **Scope:** a rider may be registered in multiple shops; `shop_id` is
-      derived from the authenticated token, never sent by the client.
+    - **Scope (INV-RIDER-2):** a token represents exactly one shop context;
+      `shop_id` is derived from the authenticated user, never sent by the client,
+      and there is no cross-shop data access. A rider registered in multiple
+      shops uses a separate login/token per shop.
 
     **Money is integer minor units** (`*_minor`) on this public contract,
     matching the Orders convention. The internal Laravel aggregate stores
@@ -223,11 +225,11 @@ paths:
       tags: [deliveries]
       summary: List the rider's deliveries
       description: >
-        Active deliveries across every shop the rider belongs to. Pass
+        The authenticated rider's deliveries **within the token's shop**
+        (INV-RIDER-2 — a token represents exactly one shop context). Pass
         `history=1` for terminal deliveries (Delivered/Cancelled/Failed) within
-        the last `days` (default 7, max 90). Pass `shop_id` to scope to one shop.
+        the last `days` (default 7, max 90).
       parameters:
-        - { name: shop_id, in: query, required: false, schema: { type: integer }, description: Filter to one shop. }
         - { name: history, in: query, required: false, schema: { type: boolean }, description: Return terminal deliveries instead of active. }
         - { name: days, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 90, default: 7 }, description: History window in days. }
       responses:
@@ -259,7 +261,7 @@ paths:
     get:
       tags: [deliveries]
       summary: Look up a delivery by its code (QR scan)
-      description: Returns a delivery in any shop the rider belongs to, regardless of assignment. Use `can_claim` / `is_assigned_to_me` to decide the next action.
+      description: Looks up a delivery by code **within the token's shop** (INV-RIDER-2); a code from another shop returns 404. Use `can_claim` / `is_assigned_to_me` to decide the next action.
       parameters:
         - { name: code, in: path, required: true, schema: { type: string }, description: The delivery_code from the QR. }
       responses:

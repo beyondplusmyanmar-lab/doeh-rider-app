@@ -24,6 +24,12 @@ info:
     document is therefore a **governed projection** of the already-authoritative
     API implemented in `RiderDeliveryController` / `RiderNotificationController`:
     it documents the public-facing surface, not the raw internal field shapes.
+
+    **Exception — the rider wallet is not yet on this minor-units ABI.** Its
+    fields (`balance`, `total_collected`, `total_settled`) are emitted as raw
+    major-unit floats. The wallet aggregates COD across deliveries that may span
+    branches and currencies, so it has no single currency to attribute and no
+    canonical minor-units projection is defined for it yet (deferred — INV-RIDER-1b).
 servers:
   - url: https://{host}/api/v1
     description: Rider API base
@@ -81,7 +87,7 @@ paths:
                       - shop: { id: 1, shop_code: "SANDBOX-DEMO", name: "Sandbox Demo Shop" }
                         user_id: 99
                         rider_id: 42
-                        wallet: { balance_minor: 0, total_collected_minor: 0 }
+                        wallet: { balance: 0, total_collected: 0 }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
@@ -473,21 +479,26 @@ paths:
     get:
       tags: [profile]
       summary: Rider wallet
-      description: COD balance owed to the shop, plus lifetime collected / settled totals. All amounts are minor units.
+      description: >
+        COD balance owed to the shop, plus lifetime collected / settled totals.
+        Unlike the rest of this contract these are raw major-unit floats, NOT
+        minor units: the wallet aggregates COD across branches/currencies and has
+        no single currency to project into a canonical minor-units ABI yet
+        (deferred — INV-RIDER-1b).
       responses:
         '200':
-          description: Wallet.
+          description: Wallet (major-unit floats; non-canonical — see INV-RIDER-1b).
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  balance_minor: { type: integer }
-                  total_collected_minor: { type: integer }
-                  total_settled_minor: { type: integer }
+                  balance: { type: number }
+                  total_collected: { type: number }
+                  total_settled: { type: number }
               examples:
                 golden:
-                  value: { balance_minor: 325000, total_collected_minor: 540000, total_settled_minor: 215000 }
+                  value: { balance: 3250.00, total_collected: 5400.00, total_settled: 2150.00 }
 
   # ── LOCATION ──────────────────────────────────────────────────────────────
   /rider/location:
@@ -708,9 +719,10 @@ components:
               wallet:
                 type: object
                 nullable: true
+                description: Major-unit floats, non-canonical — not on the minor-units ABI (deferred, INV-RIDER-1b).
                 properties:
-                  balance_minor: { type: integer }
-                  total_collected_minor: { type: integer }
+                  balance: { type: number }
+                  total_collected: { type: number }
 
     RegisterRequest:
       type: object

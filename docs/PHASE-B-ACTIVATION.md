@@ -77,7 +77,17 @@ The seed tenant must include deliveries, not just a rider account (otherwise `GE
 
 ## Acceptance criteria
 
-A developer with no internal access can: obtain demo credentials · login · view deliveries · accept · pickup · complete · exercise COD · run the Expo reference app · capture runtime fixtures — **without operator assistance.**
+A developer with **no internal access** can, **without operator assistance**:
+
+- [ ] obtain demo credentials
+- [ ] login (`POST /rider/login`)
+- [ ] view deliveries
+- [ ] accept a delivery
+- [ ] mark picked up
+- [ ] mark delivered
+- [ ] exercise the COD workflow
+- [ ] run the Expo reference app
+- [ ] capture runtime fixtures
 
 ## Blockers
 

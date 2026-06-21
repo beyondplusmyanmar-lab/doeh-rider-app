@@ -1,5 +1,11 @@
 # Phase B — Demo Rider Provisioning Implementation (tracking)
 
+> **Status: BLOCKED — gated by INV-SANDBOX-1 (Operational Developer Sandbox).**
+> No provisioning, Expo implementation, or runtime fixture-capture work should begin
+> until INV-SANDBOX-1's acceptance criteria are green. Phase B is architecturally
+> complete; the missing dependency is the operational sandbox, **not** the rider
+> workstream.
+
 > **In-repo tracking artifact.** This is the umbrella tracker for Phase B
 > implementation. It lives in the repo (committed over SSH) because the GitHub
 > Issues API is not available from the build environment; promote it to a real

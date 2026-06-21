@@ -95,4 +95,4 @@ A developer with **no internal access** can, **without operator assistance**:
 
 ---
 
-_Umbrella tracker. Once the sandbox exists, this spawns implementation sub-issues per workstream; until then it is the authoritative activation point for the remaining rider workstream._
+_Umbrella tracker. Once the sandbox exists, this spawns implementation sub-issues per workstream (planned breakdown: [`PHASE-B-SUBISSUES.md`](PHASE-B-SUBISSUES.md), PB-01…PB-07); until then it is the authoritative activation point for the remaining rider workstream._

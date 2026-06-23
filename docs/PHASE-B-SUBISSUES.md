@@ -27,13 +27,22 @@
 
 **Labels:** `phase-b` · `provisioning`
 
-- [ ] Create demo rider accounts
-- [ ] Associate with a seeded shop
-- [ ] Generate temporary credentials
-- [ ] TTL policy
-- [ ] Rider recycling
+> **Shipped as Option B (pooled credential), not a self-service service.** A
+> single seeded demo rider (`rider@sandbox.test`) lives in the disposable sandbox
+> shop and is recycled by the scheduled reset — so the self-service items below
+> are intentionally deferred. The developer-facing usage guide (PB-02c) is
+> [`DEMO-RIDER-QUICKSTART.md`](DEMO-RIDER-QUICKSTART.md).
+
+- [x] Demo rider account — pooled, seeded (`rider@sandbox.test`)
+- [x] Associate with a seeded shop — `SBX-COFFEE-001` (Sandbox Coffee)
+- [x] Published credential (PB-02a) + dev docs (PB-02c → quickstart)
+- [ ] Temporary per-developer credentials _(self-service, deferred)_
+- [ ] TTL policy _(self-service, deferred)_
+- [ ] Rider recycling — _via scheduled sandbox reset (pooled model)_
 
 **Exit criteria:** a developer receives usable credentials automatically.
+_Met for the pooled model: the credential is published and documented. Automatic
+per-developer issuance remains the deferred self-service step._
 
 ---
 

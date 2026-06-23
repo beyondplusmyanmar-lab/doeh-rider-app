@@ -78,10 +78,12 @@ workflow and the two contract gotchas (`X-Shop-Code`, minor-units).
 The reference app needs a **rider account** to log in. A rider is a real
 `role='rider'` user in a shop. The public sandbox ships a **pooled demo rider**
 (prefilled in [`reference-app/.env.example`](reference-app/.env.example)), so the
-app is runnable out of the box. Fully self-serve **demo-rider provisioning** —
-your own disposable rider — is tracked as **Phase B** below. To run against your
-own data instead, point the app at your shop's host and use a rider account you
-control.
+app is runnable out of the box. For a no-code, `curl`-only walkthrough of the same
+workflow, see the [**Demo Rider Quickstart**](docs/DEMO-RIDER-QUICKSTART.md).
+
+Fully self-serve **demo-rider provisioning** — your own disposable rider — is
+tracked as **Phase B** below. To run against your own data instead, point the app
+at your shop's host and use a rider account you control.
 
 ## Contract hierarchy
 

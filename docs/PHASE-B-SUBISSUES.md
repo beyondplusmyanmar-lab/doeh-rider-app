@@ -77,16 +77,22 @@ Portal flow: `Request Demo Rider → credentials → open rider app`.
 
 **Labels:** `phase-b` · `expo`
 
-- [ ] SecureStore
-- [ ] Login
-- [ ] Deliveries
-- [ ] Accept
-- [ ] Pickup
-- [ ] Delivered
-- [ ] COD
-- [ ] Wallet
+Scaffolded in [`reference-app/`](../reference-app/) (Expo SDK 52, expo-router,
+four screens). All eight surfaces are implemented against the live contract; the
+HTTP lifecycle they drive is verified end-to-end (PB-07). On-device / simulator
+run-through is the remaining step.
+
+- [x] SecureStore — `src/store/session.tsx` (token + shop_code in Keychain/Keystore)
+- [x] Login — `app/index.tsx` → `POST /rider/login`
+- [x] Deliveries — `app/deliveries.tsx` → `GET /rider/deliveries`
+- [x] Accept — `app/delivery/[id].tsx` (state-machine transition)
+- [x] Pickup — `app/delivery/[id].tsx` (ReadyPickup → OutForDelivery)
+- [x] Delivered — `app/delivery/[id].tsx` (auto-collects COD)
+- [x] COD — `markCodCollected()` fallback + wallet delta on delivered
+- [x] Wallet — `app/wallet.tsx` → `GET /rider/wallet`
 
 **Exit criteria:** a clean-room developer can complete the workflow.
+_Code complete; pending a device/simulator run-through to tick the exit box._
 
 ---
 

@@ -60,21 +60,28 @@ npm test          # runs the contract drift gate (OpenAPI ⇄ fixtures + invaria
 - Rendered docs are published at
   [`developers.doehpos.com/docs/fulfillment/`](https://developers.doehpos.com/docs/fulfillment/).
 
-When the Expo reference app lands (see Roadmap), running it will look like:
+A conservative **Expo reference app** that consumes this contract lives in
+[`reference-app/`](reference-app/). It defaults to the public sandbox:
 
 ```bash
-cp .env.example .env      # set RIDER_API_URL to your shop / sandbox host
+cd reference-app
+cp .env.example .env      # defaults already point at the sandbox
 npm install
-npm run dev               # then log in with a (demo) rider account
+npx expo start            # then log in with the demo rider account
 ```
+
+See [`reference-app/README.md`](reference-app/README.md) for the four-screen
+workflow and the two contract gotchas (`X-Shop-Code`, minor-units).
 
 ## Sandbox requirements
 
 The reference app needs a **rider account** to log in. A rider is a real
-`role='rider'` user in a shop. Self-serve **demo-rider provisioning** in a
-sandbox does not exist yet — it is tracked as **Phase B** below. Until then, the
-contract is fully readable and testable, but running an end-to-end app requires a
-rider account in a shop you control.
+`role='rider'` user in a shop. The public sandbox ships a **pooled demo rider**
+(prefilled in [`reference-app/.env.example`](reference-app/.env.example)), so the
+app is runnable out of the box. Fully self-serve **demo-rider provisioning** —
+your own disposable rider — is tracked as **Phase B** below. To run against your
+own data instead, point the app at your shop's host and use a rider account you
+control.
 
 ## Contract hierarchy
 
@@ -129,7 +136,8 @@ non-negative integer, or if a transition violates the state machine.
 
 ### Expo app posture
 
-When the reference app is built it will stay **intentionally conservative** —
-login, assigned deliveries, detail, accept, pickup, delivered, wallet,
-notifications. It will **never** contain production secrets, real FCM config,
-real tenants, or real rider credentials.
+The reference app ([`reference-app/`](reference-app/)) is **intentionally
+conservative** — login, assigned deliveries, detail, accept, pickup, delivered,
+wallet, notifications, on four screens. It **never** contains production secrets,
+real FCM config, real tenants, or real rider credentials — only the published
+sandbox demo rider.
